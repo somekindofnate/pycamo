@@ -24,6 +24,7 @@ parser.add_argument("--preset", help="Use a specific color palette.",
 
 parser.add_argument("--grid", help="Add an occlusion grid", action="store_true")
 parser.add_argument("--rain", help="Add rain streaking", action="store_true")
+parser.add_argument("--no_outline", help="Remove the black, layered outline for each shape", action="store_true")
 parser.add_argument("--modulation", help="Add digital noise texture to each color layer", action="store_true")
 parser.add_argument("--grid_color", help="Grid Color (Hex)")
 parser.add_argument("--colors", help="List of hex colors, separated by commas (Overwrites preset)")
@@ -282,7 +283,8 @@ def create_camo(width, height, grid_size, args):
         
         base_img[mask] = layer[mask]
         
-        if not (args.type == 'brush' and i == 0):
+        should_outline = (not args.no_outline) and not (args.type == 'brush' and i == 0)
+        if should_outline:
             outline_thickness = max(10, int(35 - (progress * 15)))
             base_img = apply_outline(base_img, mask, thickness=outline_thickness)
 

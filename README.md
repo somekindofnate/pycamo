@@ -18,7 +18,7 @@ Installation is straightforward: Navigate to the directory, instantiate a virtua
 
 Running this script will output 3 distinct images in a preset color palette in an organic pattern.
 
-## Patterns, Colors, Params
+## Patterns
 There are a vairety of patterns supported, each taking inspiration from a variety of camouflage types.
 
 ### Organic (default)
@@ -45,3 +45,34 @@ An avant-garde, harsh camo pattern. An attempt to make a pattern that would be i
 ![Jagged in a custom palette](output/camo_d7993c28.png)
 
 `python camo.py --type jagged --colors #f2f2f2,#ebebeb,#e0e0e0,#dedede,#d9d9d9`
+
+## Colors
+The application supports 3 predefined color palettes, and a potentially infinite number of additional colors.
+
+### Preset
+The preset palettes are `piedmont` (default), `clay`, and `concrete`. These can be set using the `--preset` flag and setting the type of color palette desired.
+
+`python camo.py --preset concrete`
+`python camo.py --preset clay`
+`python camo.py --preset piedmont`
+
+### Custom
+Camouflage can be generated using custom color palettes as well. Including a `--colors` param followed by a comma-delimited list of hex codes will generate a custom camouflage in the desired palette.
+
+`python camo.py --colors #6A3B28,#4A5D44,#8C7B65`
+`python camo.py --colors "#896E60,#95837A,#4E5B51"`
+`python camo.py --type jagged --colors #f2f2f2,#ebebeb,#e0e0e0,#dedede,#d9d9d9`
+
+## Modifiers
+In addition to type and color palette, each camouflage can be modified with additional settings, each building on top of one another.
+
+- `--limit` limit the nume of iterations. By default, 3 patterns are generated.
+- `--no_outline` will remove the 20px outline around each shape, giving a flatter look.
+- `--grid` will generate an occlusion grid, ideally designed to give computer-vision a harder time with organic shapes.
+- `--grid_color` can be used as a modifier to also set a hex color for the grid. By default, it uses a very dark grey.
+- `--rain` will add grid-colored streaks of "rain" to the image, imitating a Splittertarnmuster-type look
+- `--modulation` will modulate each layer to give it a digital camouflage look to the color scheme
+
+A complex pattern might look something like this:
+`python camo.py --preset concrete --type jagged --grid --rain --modulation --no_outline`
+![Generated jagged pattern, using a variety of modifiers](output/camo_b6ede47f.png)
