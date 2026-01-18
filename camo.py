@@ -15,8 +15,8 @@ PALETTES = {
 # --- SETUP ARGUMENTS ---
 parser = argparse.ArgumentParser()
 parser.add_argument("--type", help="The specific style of camouflage to generate.", 
-                    required=True, 
-                    choices=['organic', 'jagged', 'm90', 'brush'])
+                    default='organic', 
+                    choices=['organic', 'jagged', 'chunk', 'brush'])
 
 parser.add_argument("--preset", help="Use a specific color palette.", 
                     choices=PALETTES.keys(), 
@@ -27,7 +27,7 @@ parser.add_argument("--rain", help="Add rain streaking", action="store_true")
 parser.add_argument("--modulation", help="Add digital noise texture to each color layer", action="store_true")
 parser.add_argument("--grid_color", help="Grid Color (Hex)")
 parser.add_argument("--colors", help="List of hex colors, separated by commas (Overwrites preset)")
-parser.add_argument("--limit", help="How many images to generate", default=10)
+parser.add_argument("--limit", help="How many images to generate", default=3)
 
 def hextorgb(hex_code):
     hex_code = hex_code.strip().lstrip('#')
@@ -253,7 +253,7 @@ def create_camo(width, height, grid_size, args):
             l_max = int(3000 - (progress * 200))
             mask = generate_brush_mask(width, height, count, l_min, l_max)
 
-        elif args.type == 'm90':
+        elif args.type == 'chunk':
             count = 150 
             target_thresh = 50 + (progress * 150)
             thresh = int(target_thresh + random.randint(-20, 20))
