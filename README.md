@@ -6,14 +6,14 @@ A rudimentary camouflage generator in python.
 - Enough free space to generate between 1mb and 5mb images
 
 ## Installation
-Installation is straightforward: Navigate to the directory, instantiate a virtual environment, activate said env, install the requirements, run the program.
+Navigate to the directory, instantiate a virtual environment, activate said env, install the requirements, run the program.
 
-```
-	cd ~/pycamo
-	python3 -m venv venv
-	source venv/bin/activate
-	pip install -r requirements.txt
-	python camo.py
+```bash
+cd ~/pycamo
+python3 -m venv venv
+source venv/bin/activate
+pip install -r requirements.txt
+python camo.py
 ```
 
 Running this script will output 3 distinct images in a preset color palette in an organic pattern.
@@ -46,15 +46,29 @@ An avant-garde, harsh camo pattern. An attempt to make a pattern that would be i
 
 `python camo.py --type jagged --colors #f2f2f2,#ebebeb,#e0e0e0,#dedede,#d9d9d9`
 
+### Tiger
+Inspired by Vietnam-era Tigerstripe. It generates horizontal, interlocking bands that warp and flow across the image.
+
+![Tiger-inspired with the bergen palette](output/camo_58e5989f.png)
+
+`python camo.py --type tiger --preset bergen`
+
+### KLMK (Digital)
+Inspired by the Soviet "Berezka" (Birch Leaf) pattern. It uses a quantized noise algorithm to create a stair-step "digital" effect with jagged edges.
+
+![KLMK with a custom 2-color palette](output/camo_klmk_klmk_6cb004b5.png)
+
+`python camo.py --type klmk --colors #1C1C1C,#47503a`
+
 ## Colors
 The application supports 3 predefined color palettes, and a potentially infinite number of additional colors.
 
 ### Preset
-The preset palettes are `piedmont` (default), `clay`, and `concrete`. These can be set using the `--preset` flag and setting the type of color palette desired.
+The preset palettes are `piedmont` (default), `clay`, `concrete`, `winterlock`, `bergen`, and `klmk`. These can be set using the `--preset` flag.
 
 `python camo.py --preset concrete`
-`python camo.py --preset clay`
-`python camo.py --preset piedmont`
+`python camo.py --preset winterlock`
+`python camo.py --preset klmk`
 
 ### Custom
 Camouflage can be generated using custom color palettes as well. Including a `--colors` param followed by a comma-delimited list of hex codes will generate a custom camouflage in the desired palette.

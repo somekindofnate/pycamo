@@ -7,16 +7,19 @@ import sys
 
 # --- PRESET PALETTES ---
 PALETTES = {
-    "piedmont": ["#1C1C1C", "#263E31", "#8D9967"], # Forest/City Shadows
-    "clay":     ["#6A3B28", "#4A5D44", "#8C7B65"], # Red Earth/River Bank
-    "concrete": ["#59595B", "#353932", "#8E918F"], # Urban/Industrial
+    "piedmont":   ["#1C1C1C", "#263E31", "#8D9967"],           # Forest/City Shadows
+    "clay":       ["#1C1C1C", "#6A3B28", "#4A5D44", "#8C7B65"], # Red Earth/River Bank
+    "concrete":   ["#59595B", "#353932", "#8E918F"],           # Urban/Industrial
+    "winterlock": ["#bbbfc0", "#6d7961", "#871c26", "#4a512f"], # Snow/Pine/Red
+    "bergen":     ["#8e6c35", "#55442b", "#655832", "#848d4a", "#71743f"],
+    "klmk":       ["#47503a", "#b2b8b5"]                        # Authentic Berezka
 }
 
 # --- SETUP ARGUMENTS ---
 parser = argparse.ArgumentParser()
 parser.add_argument("--type", help="The specific style of camouflage to generate.", 
                     default='organic', 
-                    choices=['organic', 'jagged', 'chunk', 'brush'])
+                    choices=['organic', 'jagged', 'chunk', 'brush', 'tiger', 'klmk'])
 
 parser.add_argument("--preset", help="Use a specific color palette.", 
                     choices=PALETTES.keys(), 
@@ -32,11 +35,11 @@ parser.add_argument("--limit", help="How many images to generate", default=3)
 
 def hextorgb(hex_code):
     hex_code = hex_code.strip().lstrip('#')
-    return tuple(int(hex_code[i:i+2], 16) for i in (4, 2, 0))
+    return tuple(int(hex_code[i:i+2], 16) for i in (4, 2, 0)) # BGR for OpenCV
 
 def status_update(msg):
     """Helper to overwrite the current line in the terminal"""
-    sys.stdout.write(f"\r{msg:<80}") # Pad with spaces to clear previous text
+    sys.stdout.write(f"\r{msg:<80}") 
     sys.stdout.flush()
 
 def add_rain_streaks(img, color, density=200, length_min=20, length_max=300):
@@ -105,7 +108,7 @@ def generate_jagged_mask(width, height, count, size_min, size_max):
             angle = random.uniform(0, 2 * np.pi)
             r = random.uniform(size_min, size_max)
             x = int(cx + r * np.cos(angle) * random.uniform(0.5, 1.5))
-            y = int(cy + r * np.sin(angle))
+            y = int(cy + r * np.sin(angle) * random.uniform(0.5, 1.5)) # Slight asymmetry
             pts.append([x, y])
         pts = np.array(pts, np.int32).reshape((-1, 1, 2))
         for dx, dy in offsets:
@@ -217,6 +220,57 @@ def generate_brush_mask(width, height, count, length_min, length_max):
             
     return mask > 0
 
+def generate_tiger_mask(width, height, scale_x, scale_y, threshold, warp_intensity=50):
+    small_w = max(1, width // scale_x)
+    small_h = max(1, height // scale_y)
+    
+    noise = np.random.randint(0, 255, (small_h, small_w), dtype=np.uint8)
+    noise_up = cv2.resize(noise, (width, height), interpolation=cv2.INTER_CUBIC)
+    
+    flow_map_x = np.random.rand(height, width).astype(np.float32) * 2 - 1
+    flow_map_y = np.random.rand(height, width).astype(np.float32) * 2 - 1
+    
+    sigma = width // 100
+    flow_map_x = cv2.GaussianBlur(flow_map_x, (0, 0), sigma) * warp_intensity * 10
+    flow_map_y = cv2.GaussianBlur(flow_map_y, (0, 0), sigma) * warp_intensity * 10
+    
+    x, y = np.meshgrid(np.arange(width), np.arange(height))
+    map_x = (x + flow_map_x).astype(np.float32)
+    map_y = (y + flow_map_y).astype(np.float32)
+    
+    distorted = cv2.remap(noise_up, map_x, map_y, interpolation=cv2.INTER_LINEAR, borderMode=cv2.BORDER_REFLECT)
+    
+    _, mask = cv2.threshold(distorted, threshold, 255, cv2.THRESH_BINARY)
+    return mask > 0
+
+# --- NEW: KLMK (BEREZKA) GENERATOR ---
+def generate_klmk_mask(width, height, block_size, density, smoothness=2.0):
+    """
+    Generates a Berezka-style 'digital' mask.
+    Logic: Low-res noise -> Blur -> Threshold -> Nearest-Neighbor Upscale
+    """
+    # 1. Define Low-Res Grid
+    small_w = max(1, width // block_size)
+    small_h = max(1, height // block_size)
+    
+    # 2. Generate Random Noise
+    noise = np.random.randint(0, 255, (small_h, small_w), dtype=np.uint8)
+    
+    # 3. Gaussian Blur (Creates the organic 'clumps')
+    # sigmaX=0 lets OpenCV calculate sigma from kernel size automatically.
+    # We map 'smoothness' to a kernel size (must be odd).
+    k_size = int(smoothness * 4) | 1 
+    blurred = cv2.GaussianBlur(noise, (k_size, k_size), 0)
+    
+    # 4. Thresholding (Controls density)
+    limit = np.percentile(blurred, (1 - density) * 100)
+    _, mask = cv2.threshold(blurred, limit, 255, cv2.THRESH_BINARY)
+    
+    # 5. Upscale with Nearest Neighbor (Creates the 'Stair-Step' blocky look)
+    mask_full = cv2.resize(mask, (width, height), interpolation=cv2.INTER_NEAREST)
+    
+    return mask_full > 0
+
 def create_camo(width, height, grid_size, args):
     if args.grid_color: color_grid = hextorgb(args.grid_color)
     else: color_grid = (20, 20, 20)
@@ -226,33 +280,50 @@ def create_camo(width, height, grid_size, args):
     else:
         color_list = PALETTES[args.preset]
 
-    status_update("Generating base digital noise...")
+    # 1. Generate Hidden Noise (Required for Organic masks)
+    status_update("Calculating noise map...")
     noise_scale = np.random.randint(100, 255)
     low_h, low_w = height // noise_scale, width // noise_scale
     noise_raw = np.random.randint(150, 255, (low_h, low_w), dtype=np.uint8)
     noise_layer = cv2.resize(noise_raw, (width, height), interpolation=cv2.INTER_NEAREST)
     
-    base_img = cv2.merge([noise_layer, noise_layer, noise_layer])
-    base_img = (base_img * 0.2).astype(np.uint8) + 30
+    # 2. Set Base Layer (First Color in List)
+    status_update(f"Initializing base layer with {color_list[0]}...")
+    base_rgb = hextorgb(color_list[0])
+    base_img = np.full((height, width, 3), base_rgb, dtype=np.uint8)
 
-    status_update(f"Generating layers ({len(color_list)} cols, {args.type})...")
+    # 3. Apply Modulation to Base (if requested)
+    if args.modulation:
+        mod_density = 20
+        mod_scale = random.randint(20, 60) 
+        base_img = apply_digital_modulation(base_img, density=mod_density, scale=mod_scale)
+
+    status_update(f"Generating layers ({len(color_list)-1} cols, {args.type})...")
 
     total_layers = len(color_list)
 
+    # 4. Iterate through remaining colors
     for i, hex_color in enumerate(color_list):
+        if i == 0: continue # Skip the first color, it's already the background
+        
         rgb = hextorgb(hex_color)
         progress = i / total_layers
         
         mask = None
         
-        if args.type == 'brush' and i == 0:
-            mask = np.ones((height, width), dtype=bool)
-            
-        elif args.type == 'brush':
+        # --- GENERATORS ---
+        if args.type == 'brush':
             count = max(20, int(80 - (progress * 60)))
             l_min = int(800 - (progress * 100))
             l_max = int(3000 - (progress * 200))
             mask = generate_brush_mask(width, height, count, l_min, l_max)
+
+        elif args.type == 'tiger':
+            scale_x = int(800 + (progress * 400)) 
+            scale_y = int(150 + (progress * 100))
+            target_thresh = 100 + (progress * 80)
+            thresh = int(target_thresh + random.randint(-10, 10))
+            mask = generate_tiger_mask(width, height, scale_x, scale_y, thresh)
 
         elif args.type == 'chunk':
             count = 150 
@@ -265,6 +336,17 @@ def create_camo(width, height, grid_size, args):
             s_min = int(200 - (progress * 50))
             s_max = int(500 - (progress * 200))
             mask = generate_jagged_mask(width, height, count, s_min, s_max)
+        
+        # --- KLMK LOGIC ---
+        elif args.type == 'klmk':
+            # Block size scales with image width to keep relative 'pixel' look
+            # Approx 1.2% of width (roughly 85px for 7200 width)
+            base_block = width // 85 
+            block_size = int(base_block + random.randint(5, 10))
+            
+            # Density typically 0.40 - 0.50
+            density = 0.3 + (random.uniform(-0.05, 0.05))
+            mask = generate_klmk_mask(width, height, block_size, density, smoothness=2.5)
             
         elif args.type == 'organic':
             target_thresh = 90 + (progress * 100) 
@@ -274,6 +356,7 @@ def create_camo(width, height, grid_size, args):
             scale = int(target_scale + random.randint(-50, 50))
             mask = generate_organic_mask(width, height, scale, thresh, noise_layer)
 
+        # Create Layer
         layer = np.full((height, width, 3), rgb, dtype=np.uint8)
 
         if args.modulation:
@@ -283,9 +366,12 @@ def create_camo(width, height, grid_size, args):
         
         base_img[mask] = layer[mask]
         
-        should_outline = (not args.no_outline) and not (args.type == 'brush' and i == 0)
+        # APPLY OUTLINE LOGIC
+        should_outline = (not args.no_outline)
+
         if should_outline:
-            outline_thickness = max(10, int(35 - (progress * 15)))
+             
+            outline_thickness = max(10, int(35 - (progress * 15))) 
             base_img = apply_outline(base_img, mask, thickness=outline_thickness)
 
     if args.rain:
@@ -304,10 +390,16 @@ if __name__ == "__main__":
     args = parser.parse_args()
     limit = int(args.limit)
 
+    pattern_color = "custom" if args.colors else args.preset
+
     for i in range(limit):
         camo_img = create_camo(WIDTH, HEIGHT, GRID_PX, args)
         file_hash = hashlib.md5(camo_img.tobytes()).hexdigest()[:8]
-        filename = f"output/camo_{file_hash}.png"
-        cv2.imwrite(filename, camo_img, [cv2.IMWRITE_PNG_COMPRESSION, 4])
-        # Overwrite the last status message with the final result
-        sys.stdout.write(f"\rGenerated {filename}" + " " * 40 + "\n")
+        filename = f"output/camo_{args.type}_{pattern_color}_{file_hash}.png"
+        
+        # Ensure output directory exists or just save to current
+        try:
+            cv2.imwrite(filename, camo_img, [cv2.IMWRITE_PNG_COMPRESSION, 4])
+            sys.stdout.write(f"\rGenerated {filename}" + " " * 40 + "\n")
+        except Exception as e:
+            print(f"\nError saving: {e}. Make sure 'output' folder exists.")
