@@ -51,7 +51,7 @@ Inspired by Vietnam-era Tigerstripe. It generates horizontal, interlocking bands
 
 ![Tiger-inspired with the bergen palette](output/camo_58e5989f.png)
 
-`python camo.py --type tiger --preset bergen`
+`python camo.py --type tiger --preset bergen --no_outline`
 
 ### KLMK (Digital)
 Inspired by the Soviet "Berezka" (Birch Leaf) pattern. It uses a quantized noise algorithm to create a stair-step "digital" effect with jagged edges.
@@ -61,7 +61,7 @@ Inspired by the Soviet "Berezka" (Birch Leaf) pattern. It uses a quantized noise
 `python camo.py --type klmk --colors #1C1C1C,#47503a`
 
 ## Colors
-The application supports 3 predefined color palettes, and a potentially infinite number of additional colors.
+The application supports 6 predefined color palettes, and a potentially infinite number of additional colors.
 
 ### Preset
 The preset palettes are `piedmont` (default), `clay`, `concrete`, `winterlock`, `bergen`, and `klmk`. These can be set using the `--preset` flag.
